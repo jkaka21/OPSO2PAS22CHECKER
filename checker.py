@@ -100,8 +100,9 @@ def handle_check(message):
         bot.reply_to(message, formatted_response)
 
     except Exception as e:
-        print(e)
-        bot.reply_to(message, "Ocurrió un error. Por favor, vuelve a intentarlo.")
+        print(e)  
+        bot.reply_to(message, f"Ocurrió un error: {e}")
+
 
 if __name__ == "__main__":
     print("El bot está prendido :p")
