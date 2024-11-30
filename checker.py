@@ -178,30 +178,11 @@ def handle_acceso(message):
     user_id = message.from_user.id
     plan = args[2].lower()
     if plan not in ["semanal", "mensual", "permanente"]:
-        bot.reply_to(message, "El plan debe ser: semanal, mensual o permanente.")
+        bot.reply_to(message, "Plan incorrecto. Debe ser 'semanal', 'mensual' o 'permanente'.")
         return
     subscriptions = load_subscriptions()
-    subscriptions[str(user_id)] = {"plan": plan, "start_date": str(datetime.now())}
+    subscriptions[user_id] = {"plan": plan, "fecha": datetime.now().isoformat()}
     save_subscriptions(subscriptions)
-    bot.reply_to(message, f"Se ha asignado el plan {plan} a {username}.")
+    bot.reply_to(message, f"Se ha asignado el plan '{plan}' al usuario.")
 
-@bot.message_handler(commands=['remove'])
-def handle_remove(message):
-    if message.from_user.id != OWNER_ID:
-        bot.reply_to(message, "No tienes permisos para ejecutar este comando.")
-        return
-    args = message.text.split(" ", 1)
-    if len(args) != 2:
-        bot.reply_to(message, "Uso incorrecto. El formato es: /remove @usuario")
-        return
-    username = args[1]
-    subscriptions = load_subscriptions()
-    for user_id in subscriptions:
-        if subscriptions[user_id].get('username') == username:
-            del subscriptions[user_id]
-            save_subscriptions(subscriptions)
-            bot.reply_to(message, f"Se ha eliminado a {username} de la base de datos.")
-            return
-    bot.reply_to(message, f"@{username} no tiene acceso.")
-    
 bot.polling()
