@@ -6,6 +6,8 @@ import string
 import requests
 import time
 from collections import deque
+import json
+from datetime import datetime, timedelta
 
 API_TOKEN = "7591727242:AAFQl6yxeVJ77OABzQLHYA3OLefxYVWWstU"
 bot = telebot.TeleBot(API_TOKEN)
@@ -15,6 +17,17 @@ GROUP_ID = -1002168776336
 
 queue = deque()
 cooldown = {}
+
+def load_subscriptions():
+    try:
+        with open('subscriptions.json', 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_subscriptions(subscriptions):
+    with open('subscriptions.json', 'w') as f:
+        json.dump(subscriptions, f, indent=4)
 
 async def completar_formulario(binlargo, mes, anio, code):
     async with async_playwright() as p:
@@ -146,6 +159,30 @@ def handle_check(message):
     except Exception as e:
         print(e)
         bot.reply_to(message, f"Ocurrió un error: {e}")
+
+@bot.message_handler(commands=['acceso'])
+def handle_acceso(message):
+    if message.from_user.id != OWNER_ID:
+        bot.reply_to(message, "No tienes permisos para ejecutar este comando.")
+        return
+    args = message.text.split(" ", 2)
+    if len(args) != 3:
+        bot.reply_to(message, "El formato correcto es: /acceso <duracion> <@usuario>")
+        return
+    plan = args[1]
+    username = args[2]
+    user_id = message.from_user.id
+    if plan not in ["semanal", "mensual", "permanente"]:
+        bot.reply_to(message, "El plan debe ser 'semanal', 'mensual' o 'permanente'.")
+        return
+    subscriptions = load_subscriptions()
+    subscriptions[str(user_id)] = {
+        "username": username,
+        "plan": plan,
+        "expiration_date": (datetime.now() + timedelta(weeks=1)).strftime('%Y-%m-%d %H:%M:%S') if plan == "semanal" else None
+    }
+    save_subscriptions(subscriptions)
+    bot.reply_to(message, f"Acceso asignado correctamente a {username} con el plan {plan}.")
 
 if __name__ == "__main__":
     bot.infinity_polling()
