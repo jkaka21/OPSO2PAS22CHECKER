@@ -7,7 +7,7 @@ import requests
 import time
 from collections import deque
 
-API_TOKEN = "7591727242:AAEpwalvSlJfTCQBuxQTQPhbx9O2YLjeBiQ"
+API_TOKEN = "7591727242:AAG8e0n06iWix8Xlhzqa-eALh6xDki8qABM"
 bot = telebot.TeleBot(API_TOKEN)
 
 OWNER_ID = 1658470522
