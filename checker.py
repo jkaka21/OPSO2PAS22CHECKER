@@ -122,6 +122,12 @@ def handle_check(message):
             remaining_time = 30 - (current_time - cooldown[user_id])
             bot.reply_to(message, f"Debes esperar {int(remaining_time)} segundos antes de usar /check nuevamente.")
             return
+        
+        subscriptions = load_subscriptions()
+        if str(user_id) not in subscriptions or not subscriptions[str(user_id)].get("plan"):
+            bot.reply_to(message, "No tienes acceso para usar este comando. Necesitas una suscripción activa.")
+            return
+        
         cooldown[user_id] = current_time
         username = message.from_user.username or message.from_user.first_name
         args = message.text.split(" ", 1)
@@ -167,20 +173,15 @@ def handle_acceso(message):
         return
     args = message.text.split(" ", 2)
     if len(args) != 3:
-        bot.reply_to(message, "El formato correcto es: /acceso <duracion> <@usuario>")
+        bot.reply_to(message, "Uso incorrecto. El formato es: /acceso @usuario plan")
         return
-    plan = args[1]
-    username = args[2]
-    user_id = message.from_user.id
+    username = args[1]
+    plan = args[2].lower()
     if plan not in ["semanal", "mensual", "permanente"]:
-        bot.reply_to(message, "El plan debe ser 'semanal', 'mensual' o 'permanente'.")
+        bot.reply_to(message, "El plan debe ser uno de los siguientes: semanal, mensual, permanente.")
         return
     subscriptions = load_subscriptions()
-    subscriptions[str(user_id)] = {
-        "username": username,
-        "plan": plan,
-        "expiration_date": (datetime.now() + timedelta(weeks=1)).strftime('%Y-%m-%d %H:%M:%S') if plan == "semanal" else None
-    }
+    subscriptions[username] = {"plan": plan, "date": str(datetime.now())}
     save_subscriptions(subscriptions)
     bot.reply_to(message, f"Acceso asignado correctamente a {username} con el plan {plan}.")
 
