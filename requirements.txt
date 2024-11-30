@@ -1,3 +1,7 @@
-pyTelegramBotAPI
+telebot
 playwright
-asyncio
+python-dotenv
+dateutil
+aiohttp
+string
+random
