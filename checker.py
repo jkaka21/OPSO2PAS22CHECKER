@@ -6,6 +6,8 @@ import string
 import requests
 import time
 from collections import deque
+import json
+from datetime import datetime, timedelta
 
 API_TOKEN = "7591727242:AAFQl6yxeVJ77OABzQLHYA3OLefxYVWWstU"
 bot = telebot.TeleBot(API_TOKEN)
@@ -15,6 +17,17 @@ GROUP_ID = -1002168776336
 
 queue = deque()
 cooldown = {}
+
+def load_subscriptions():
+    try:
+        with open('subscriptions.json', 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_subscriptions(subscriptions):
+    with open('subscriptions.json', 'w') as f:
+        json.dump(subscriptions, f, indent=4)
 
 async def completar_formulario(binlargo, mes, anio, code):
     async with async_playwright() as p:
@@ -109,6 +122,12 @@ def handle_check(message):
             remaining_time = 30 - (current_time - cooldown[user_id])
             bot.reply_to(message, f"Debes esperar {int(remaining_time)} segundos antes de usar /check nuevamente.")
             return
+        
+        subscriptions = load_subscriptions()
+        if str(user_id) not in subscriptions or not subscriptions[str(user_id)].get("plan"):
+            bot.reply_to(message, "No tienes acceso para usar este comando. Necesitas una suscripción activa, para comprar el acceso contacta a @cardea2 .")
+            return
+        
         cooldown[user_id] = current_time
         username = message.from_user.username or message.from_user.first_name
         args = message.text.split(" ", 1)
@@ -147,5 +166,41 @@ def handle_check(message):
         print(e)
         bot.reply_to(message, f"Ocurrió un error: {e}")
 
-if __name__ == "__main__":
-    bot.infinity_polling()
+@bot.message_handler(commands=['acceso'])
+def handle_acceso(message):
+    if message.from_user.id != OWNER_ID:
+        bot.reply_to(message, "No tienes permisos para ejecutar este comando.")
+        return
+    args = message.text.split(" ", 2)
+    if len(args) != 3:
+        bot.reply_to(message, "Uso incorrecto. El formato es: /acceso @usuario plan")
+        return
+    username = args[1]
+    plan = args[2].lower()
+    if plan not in ["semanal", "mensual", "permanente"]:
+        bot.reply_to(message, "El plan debe ser uno de los siguientes: semanal, mensual, permanente.")
+        return
+    subscriptions = load_subscriptions()
+    subscriptions[username] = {"plan": plan, "date": str(datetime.now())}
+    save_subscriptions(subscriptions)
+    bot.reply_to(message, f"Se ha asignado el plan {plan} a @{username}.")
+
+@bot.message_handler(commands=['remove'])
+def handle_remove(message):
+    if message.from_user.id != OWNER_ID:
+        bot.reply_to(message, "No tienes permisos para ejecutar este comando.")
+        return
+    args = message.text.split(" ", 1)
+    if len(args) != 2:
+        bot.reply_to(message, "Uso incorrecto. El formato es: /remove @usuario")
+        return
+    username = args[1]
+    subscriptions = load_subscriptions()
+    if username in subscriptions:
+        del subscriptions[username]
+        save_subscriptions(subscriptions)
+        bot.reply_to(message, f"Se ha eliminado a @{username} de la base de datos.")
+    else:
+        bot.reply_to(message, f"@{username} no tiene acceso.")
+    
+bot.polling()
