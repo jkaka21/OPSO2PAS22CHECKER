@@ -9,7 +9,7 @@ from collections import deque
 import json
 from datetime import datetime, timedelta
 
-API_TOKEN = "7591727242:AAFQl6yxeVJ77OABzQLHYA3OLefxYVWWstU"
+API_TOKEN = "7591727242:AAGqy9tT77EJ9AXMettORhWKF6bzlqbhcUI"
 bot = telebot.TeleBot(API_TOKEN)
 
 OWNER_ID = 1658470522
