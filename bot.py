@@ -9,7 +9,7 @@ from collections import deque
 import base64
 from io import BytesIO
 
-API_TOKEN = "7591727242:AAEIqlas3SJRjteHQGr-UkxaoJDZMOaScLU"
+API_TOKEN = "7591727242:AAG_ppa82kVVJDmpPanJWnqx3X6fOFo24n8"
 bot = telebot.TeleBot(API_TOKEN)
 
 OWNER_ID = 1658470522
