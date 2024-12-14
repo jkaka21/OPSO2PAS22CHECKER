@@ -11,9 +11,82 @@ API_TOKEN = "7591727242:AAEIqlas3SJRjteHQGr-UkxaoJDZMOaScLU"
 bot = telebot.TeleBot(API_TOKEN)
 
 OWNER_ID = 1658470522
-
 queue = deque()
 cooldown = {}
+
+RENAPER_API_KEY = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OTQyLCJyb2xlIjoyLCJpYXQiOjE3MzI4OTEyMTh9.ZJE93rqr5TzXlJ3Tz-On9Cj9AerPc9pxMNayONJ5BSo"
+RENAPER_API_URL = "https://colmen-api.rgn.io/renaper/new"
+
+def consultar_dni(dni, gender):
+    headers = {
+        "Authorization": RENAPER_API_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = {"dni": dni, "gender": gender}
+
+    try:
+        response = requests.post(RENAPER_API_URL, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        return {
+            "apellido": data.get("apellido"),
+            "nombres": data.get("nombres"),
+            "fecha_nacimiento": data.get("fecha_nacimiento"),
+            "cuil": data.get("cuil"),
+            "provincia": data.get("provincia"),
+            "ciudad": data.get("ciudad"),
+            "fecha_emision": data.get("fecha_emision"),
+            "fecha_vencimiento": data.get("fecha_vencimiento"),
+            "foto": data.get("foto"),  # Foto en formato base64
+        }
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Error al conectar con la API del RENAPER: {e}"}
+
+# Función para procesar la consulta del DNI
+@bot.message_handler(commands=['dni'])
+def handle_dni(message):
+    try:
+        args = message.text.split(" ", 2)
+        if len(args) != 3:
+            bot.reply_to(message, "Uso incorrecto. El formato es:\n/dni DNI|Género (M/F).")
+            return
+
+        dni, gender = args[1], args[2].upper()
+        if not dni.isdigit():
+            bot.reply_to(message, "El DNI debe ser un número válido.")
+            return
+        if gender not in ["M", "F"]:
+            bot.reply_to(message, "El género debe ser 'M' (masculino) o 'F' (femenino).")
+            return
+
+        bot.reply_to(message, "Procesando consulta, por favor espera un momento...")
+        data = consultar_dni(dni, gender)
+
+        if "error" in data:
+            bot.reply_to(message, data["error"])
+        else:
+            formatted_response = (
+                "Consulta de DNI | Resultados\n\n"
+                f"📄 Nombre: {data.get('nombres', 'N/A')} {data.get('apellido', 'N/A')}\n"
+                f"📂 Fecha de nacimiento: {data.get('fecha_nacimiento', 'N/A')}\n"
+                f"🔛 CUIL: {data.get('cuil', 'N/A')}\n"
+                f"🏠 Ciudad: {data.get('ciudad', 'N/A')}, {data.get('provincia', 'N/A')}\n"
+                f"📆 Fecha de emisión: {data.get('fecha_emision', 'N/A')}\n"
+                f"📆 Fecha de vencimiento: {data.get('fecha_vencimiento', 'N/A')}\n"
+            )
+            bot.reply_to(message, formatted_response)
+
+            # Manejo de la foto
+            foto_base64 = data.get("foto")
+            if foto_base64:
+                with open(f"foto_{dni}.jpg", "wb") as f:
+                    f.write(bytes.fromhex(foto_base64))
+                with open(f"foto_{dni}.jpg", "rb") as photo:
+                    bot.send_photo(message.chat.id, photo)
+            else:
+                bot.reply_to(message, "No se pudo obtener la foto del ciudadano.")
+    except Exception as e:
+        bot.reply_to(message, f"Ocurrió un error: {e}")
 
 async def completar_formulario(binlargo, mes, anio, code):
     async with async_playwright() as p:
