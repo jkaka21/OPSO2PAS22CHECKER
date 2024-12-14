@@ -6,6 +6,8 @@ import string
 import requests
 import time
 from collections import deque
+import base64
+from io import BytesIO
 
 API_TOKEN = "7591727242:AAEIqlas3SJRjteHQGr-UkxaoJDZMOaScLU"
 bot = telebot.TeleBot(API_TOKEN)
@@ -75,15 +77,20 @@ def handle_dni(message):
             )
             bot.reply_to(message, formatted_response)
 
-            foto_base64 = data.get("foto")
-            if foto_base64:
-                foto_binario = bytes.fromhex(foto_base64)
-                
-                with open(f"foto_{dni}.jpg", "wb") as f:
-                    f.write(foto_binario)
-                
-                with open(f"foto_{dni}.jpg", "rb") as photo:
-                    bot.send_photo(message.chat.id, photo)
+            # Decodificar y enviar la foto
+            if data.get('foto'):
+                try:
+                    # Decodificar la imagen desde base64
+                    imagen_bytes = base64.b64decode(data['foto'])
+                    
+                    # Enviar la foto usando BytesIO para evitar guardar un archivo temporal
+                    bot.send_photo(
+                        message.chat.id, 
+                        photo=BytesIO(imagen_bytes), 
+                        caption="Foto del documento"
+                    )
+                except Exception as e:
+                    bot.reply_to(message, f"No se pudo procesar la foto: {e}")
             else:
                 bot.reply_to(message, "No se pudo obtener la foto del ciudadano.")
     except Exception as e:
