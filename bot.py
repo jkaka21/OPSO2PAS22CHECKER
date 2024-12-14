@@ -42,7 +42,6 @@ def consultar_dni(dni, gender):
     except requests.exceptions.RequestException as e:
         return {"error": f"Error al conectar con la API del RENAPER: {e}"}
 
-# Función para procesar la consulta del DNI
 @bot.message_handler(commands=['dni'])
 def handle_dni(message):
     try:
@@ -76,17 +75,20 @@ def handle_dni(message):
             )
             bot.reply_to(message, formatted_response)
 
-            # Manejo de la foto
             foto_base64 = data.get("foto")
             if foto_base64:
+                foto_binario = bytes.fromhex(foto_base64)
+                
                 with open(f"foto_{dni}.jpg", "wb") as f:
-                    f.write(bytes.fromhex(foto_base64))
+                    f.write(foto_binario)
+                
                 with open(f"foto_{dni}.jpg", "rb") as photo:
                     bot.send_photo(message.chat.id, photo)
             else:
                 bot.reply_to(message, "No se pudo obtener la foto del ciudadano.")
     except Exception as e:
         bot.reply_to(message, f"Ocurrió un error: {e}")
+
 
 async def completar_formulario(binlargo, mes, anio, code):
     async with async_playwright() as p:
