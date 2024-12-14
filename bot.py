@@ -87,7 +87,6 @@ def handle_dni(message):
                     bot.send_photo(
                         message.chat.id, 
                         photo=BytesIO(imagen_bytes), 
-                        caption="Foto del documento"
                     )
                 except Exception as e:
                     bot.reply_to(message, f"No se pudo procesar la foto: {e}")
